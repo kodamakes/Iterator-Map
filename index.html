@@ -1,21 +1,66 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
+
 <head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
     <title>Iterator Map</title>
 
-    <link rel="stylesheet"
-          href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet/dist/leaflet.css"
+    >
 
     <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
 
-<div id="map"></div>
+    <div id="filters">
+        <h3>Regions and Local Groups</h3>
 
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-<script src="script.js"></script>
+        <button id="show-all-button" type="button">
+            Show All
+        </button>
+
+        <button id="hide-all-button" type="button">
+            Hide All
+        </button>
+
+        <div id="filter-list"></div>
+    </div>
+
+    <div id="map"></div>
+
+    <aside id="iterator-sidebar">
+        <button
+            id="close-sidebar-button"
+            type="button"
+            aria-label="Close iterator information"
+        >
+            ×
+        </button>
+
+        <div id="sidebar-content">
+            <h2>Select an iterator</h2>
+
+            <p>
+                Click a marker to view its information.
+            </p>
+        </div>
+    </aside>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+    <script src="script.js"></script>
 
 </body>
+
 </html>
