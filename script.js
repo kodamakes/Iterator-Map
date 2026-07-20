@@ -1,10 +1,15 @@
 const map = L.map("map").setView([20, 0], 2);
 
-L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
-    attribution:
-        'Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap',
-    maxZoom: 17
-}).addTo(map);
+const satelliteMap = L.tileLayer(
+    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    {
+        attribution:
+            "Tiles &copy; Esri, Maxar, Earthstar Geographics, and the GIS User Community",
+        maxZoom: 19
+    }
+);
+
+satelliteMap.addTo(map);
 
 const spreadsheetUrl =
     "https://docs.google.com/spreadsheets/d/e/2PACX-1vREjehBOpnVjJJB6eSjcewJPkRTnc10w5mns5O7pAixR4Kl1xyIpv3eImdguRTyV3qqFqodM75NoDb5/pub?gid=619479265&single=true&output=csv";
