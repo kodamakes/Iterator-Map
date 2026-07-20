@@ -1,8 +1,9 @@
 const map = L.map("map").setView([20, 0], 2);
 
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: "&copy; OpenStreetMap contributors",
-    maxZoom: 19
+L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
+    attribution:
+        'Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap',
+    maxZoom: 17
 }).addTo(map);
 
 const spreadsheetUrl =
