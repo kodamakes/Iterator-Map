@@ -2,7 +2,18 @@
 // 1. MAP SETUP
 // ============================================================
 
-const map = L.map("map").setView([20, 0], 2);
+const map = L.map("map", {
+    zoomControl: false,
+    attributionControl: false,
+    minZoom: 2,
+    maxBounds: [
+        [-85, -180],
+        [85, 180]
+    ],
+    maxBoundsViscosity: 1.0
+}).setView([15, 0], 2);
+
+map.on("zoomend", updateMarkerSize);
 
 L.tileLayer(
     "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
@@ -13,6 +24,73 @@ L.tileLayer(
     }
 ).addTo(map);
 
+const iteratorClusterGroups = new Map();
+
+function createIteratorClusterGroup() {
+    const clusterGroup =
+        L.markerClusterGroup({
+            chunkedLoading: true,
+
+            maxClusterRadius: 22,
+
+            disableClusteringAtZoom: 6,
+
+            showCoverageOnHover: false,
+            spiderfyOnMaxZoom: true,
+            zoomToBoundsOnClick: true,
+            removeOutsideVisibleBounds: true,
+
+            iconCreateFunction: function (cluster) {
+                const markerCount =
+                    cluster.getChildCount();
+
+                return L.divIcon({
+                    className: "",
+
+                    html: `
+                        <div class="iterator-cluster">
+                            <span>${markerCount}</span>
+                        </div>
+                    `,
+
+                    iconSize: [22, 22],
+                    iconAnchor: [11, 11]
+                });
+            }
+        });
+
+    clusterGroup.addTo(map);
+
+    return clusterGroup;
+}
+
+function getIteratorClusterGroup(
+    region,
+    localGroup
+) {
+    const clusterKey =
+        `${region}::${localGroup}`;
+
+    if (
+        !iteratorClusterGroups.has(
+            clusterKey
+        )
+    ) {
+        iteratorClusterGroups.set(
+            clusterKey,
+            createIteratorClusterGroup()
+        );
+    }
+
+    return iteratorClusterGroups.get(
+        clusterKey
+    );
+}
+
+map.setMaxBounds([
+    [-85, -180],
+    [85, 180]
+]);
 
 // ============================================================
 // 2. SPREADSHEET ADDRESS
@@ -154,141 +232,280 @@ const allMarkers = [];
 
 const filterControls = {};
 
+let selectedMarker = null;
 
 // ============================================================
 // 5. BUILD THE FILTER MENU
 // ============================================================
 
 function buildFilterMenu() {
-    const filterList = document.getElementById("filter-list");
+    const filterList =
+        document.getElementById("filter-list");
 
     filterList.innerHTML = "";
 
-    Object.entries(regionGroups).forEach(function ([region, groups]) {
-        const regionSection = document.createElement("details");
+    const regionGrid =
+        document.createElement("div");
 
-        regionSection.className = "region-section";
+    regionGrid.id = "region-grid";
 
-        const regionHeader = document.createElement("summary");
+    const localGroupPanel =
+        document.createElement("div");
 
-        const regionCheckbox = document.createElement("input");
+    localGroupPanel.id = "local-group-panel";
 
-        regionCheckbox.type = "checkbox";
-        regionCheckbox.checked = true;
-        regionCheckbox.className = "region-checkbox";
+    const localGroupPanelTitle =
+        document.createElement("div");
 
-        const regionName = document.createElement("span");
+    localGroupPanelTitle.id =
+        "local-group-panel-title";
 
-        regionName.textContent = region;
+    const localGroupPanelContent =
+        document.createElement("div");
 
-        regionHeader.appendChild(regionCheckbox);
-        regionHeader.appendChild(regionName);
+    localGroupPanelContent.id =
+        "local-group-panel-content";
 
-        regionSection.appendChild(regionHeader);
+    localGroupPanel.appendChild(
+        localGroupPanelTitle
+    );
 
-        const groupList = document.createElement("div");
+    localGroupPanel.appendChild(
+        localGroupPanelContent
+    );
 
-        groupList.className = "group-list";
+    filterList.appendChild(regionGrid);
+    filterList.appendChild(localGroupPanel);
 
-        const groupCheckboxes = new Map();
+    let firstRegion = null;
 
-        groups.forEach(function (group) {
-            const groupLabel = document.createElement("label");
+    Object.entries(regionGroups).forEach(
+        function ([region, groups]) {
+            if (!firstRegion) {
+                firstRegion = region;
+            }
 
-            groupLabel.className = "group-label";
+            // ----------------------------------------
+            // REGION CHIP
+            // ----------------------------------------
 
-            const groupCheckbox = document.createElement("input");
+            const regionChip =
+                document.createElement("div");
 
-            groupCheckbox.type = "checkbox";
-            groupCheckbox.checked = true;
-            groupCheckbox.className = "group-checkbox";
+            regionChip.className =
+                "region-chip enabled";
 
-            const groupName = document.createElement("span");
+            const regionButton =
+                document.createElement("button");
 
-            groupName.textContent = group;
+            regionButton.type = "button";
+            regionButton.className =
+                "region-select-button";
 
-            groupLabel.appendChild(groupCheckbox);
-            groupLabel.appendChild(groupName);
+            regionButton.textContent =
+                `REGION ${region.slice(1)}`;
 
-            groupList.appendChild(groupLabel);
+            regionChip.appendChild(regionButton);
+            regionGrid.appendChild(regionChip);
 
-            groupCheckboxes.set(group, groupCheckbox);
+            // ----------------------------------------
+            // LOCAL-GROUP LIST
+            // ----------------------------------------
 
-            groupCheckbox.addEventListener("change", function () {
-                updateRegionCheckbox(region);
-                updateMarkers();
+            const groupList =
+                document.createElement("div");
+
+            groupList.className =
+                "local-group-list";
+
+            groupList.dataset.region = region;
+            groupList.hidden = true;
+
+            const groupCheckboxes =
+                new Map();
+
+            groups.forEach(function (group) {
+                const groupLabel =
+                    document.createElement("label");
+
+                groupLabel.className =
+                    "group-label";
+
+                const groupCheckbox =
+                    document.createElement("input");
+
+                groupCheckbox.type = "checkbox";
+                groupCheckbox.checked = true;
+                groupCheckbox.className =
+                    "group-checkbox";
+
+                const groupName =
+                    document.createElement("span");
+
+                groupName.textContent = group;
+
+                groupLabel.appendChild(
+                    groupCheckbox
+                );
+
+                groupLabel.appendChild(
+                    groupName
+                );
+
+                groupList.appendChild(
+                    groupLabel
+                );
+
+                groupCheckboxes.set(
+                    group,
+                    groupCheckbox
+                );
+
+                groupCheckbox.addEventListener(
+                    "change",
+                    function () {
+                        updateRegionButton(region);
+                        updateMarkers();
+                    }
+                );
             });
-        });
 
-        regionSection.appendChild(groupList);
+            localGroupPanelContent.appendChild(
+                groupList
+            );
 
-        filterList.appendChild(regionSection);
+            filterControls[region] = {
+                regionButton: regionButton,
+                groupCheckboxes: groupCheckboxes,
+                regionChip: regionChip,
+                groupList: groupList
+            };
 
-        filterControls[region] = {
-            regionCheckbox: regionCheckbox,
-            groupCheckboxes: groupCheckboxes
-        };
+            regionButton.addEventListener(
+                "click",
+                function () {
+                    showLocalGroupPanel(region);
+                }
+            );
 
-        regionCheckbox.addEventListener("click", function (event) {
-            event.stopPropagation();
-        });
+            regionButton.addEventListener(
+                "dblclick",
+                function () {
+                    const shouldEnable =
+                        [...groupCheckboxes.values()]
+                            .some(function (checkbox) {
+                                return !checkbox.checked;
+                            });
 
-        regionCheckbox.addEventListener("change", function () {
-            groupCheckboxes.forEach(function (groupCheckbox) {
-                groupCheckbox.checked = regionCheckbox.checked;
-            });
+                    groupCheckboxes.forEach(
+                        function (checkbox) {
+                            checkbox.checked =
+                                shouldEnable;
+                        }
+                    );
 
-            regionCheckbox.indeterminate = false;
+                    updateRegionButton(region);
+                    updateMarkers();
+                }
+            );
+        }
+    );
 
-            updateMarkers();
-        });
-    });
+    if (firstRegion) {
+        showLocalGroupPanel(firstRegion);
+    }
 
-    document
-        .getElementById("show-all-button")
-        .addEventListener("click", function () {
-            setAllFilters(true);
-        });
+    const showAllButton =
+        document.getElementById(
+            "show-all-button"
+        );
 
-    document
-        .getElementById("hide-all-button")
-        .addEventListener("click", function () {
-            setAllFilters(false);
-        });
+    const hideAllButton =
+        document.getElementById(
+            "hide-all-button"
+        );
+
+    if (showAllButton) {
+        showAllButton.addEventListener(
+            "click",
+            function () {
+                setAllFilters(true);
+            }
+        );
+    }
+
+    if (hideAllButton) {
+        hideAllButton.addEventListener(
+            "click",
+            function () {
+                setAllFilters(false);
+            }
+        );
+    }
 }
 
+function showLocalGroupPanel(region) {
+    const panelTitle =
+        document.getElementById(
+            "local-group-panel-title"
+        );
 
-// ============================================================
-// 6. UPDATE REGION CHECKBOXES
-// ============================================================
+    Object.entries(filterControls).forEach(
+        function ([currentRegion, controls]) {
+            const isActive =
+                currentRegion === region;
 
-function updateRegionCheckbox(region) {
-    const controls = filterControls[region];
+            controls.regionChip.classList.toggle(
+                "active",
+                isActive
+            );
+
+            controls.groupList.hidden =
+                !isActive;
+        }
+    );
+
+    if (panelTitle) {
+        panelTitle.textContent =
+            `Region ${region.slice(1)} | Local Groups`;
+    }
+}
+
+function updateRegionButton(region) {
+    const controls =
+        filterControls[region];
 
     if (!controls) {
         return;
     }
 
-    const groupCheckboxes = Array.from(
-        controls.groupCheckboxes.values()
+    const groupCheckboxes =
+        [...controls.groupCheckboxes.values()];
+
+    const enabledCount =
+        groupCheckboxes.filter(
+            function (checkbox) {
+                return checkbox.checked;
+            }
+        ).length;
+
+    controls.regionChip.classList.toggle(
+        "enabled",
+        enabledCount > 0
     );
 
-    const checkedCount = groupCheckboxes.filter(
-        function (checkbox) {
-            return checkbox.checked;
-        }
-    ).length;
+    controls.regionChip.classList.toggle(
+        "partially-enabled",
+        enabledCount > 0 &&
+        enabledCount < groupCheckboxes.length
+    );
 
-    if (checkedCount === 0) {
-        controls.regionCheckbox.checked = false;
-        controls.regionCheckbox.indeterminate = false;
-    } else if (checkedCount === groupCheckboxes.length) {
-        controls.regionCheckbox.checked = true;
-        controls.regionCheckbox.indeterminate = false;
-    } else {
-        controls.regionCheckbox.checked = true;
-        controls.regionCheckbox.indeterminate = true;
-    }
+    controls.regionButton.setAttribute(
+        "aria-pressed",
+        enabledCount > 0
+            ? "true"
+            : "false"
+    );
 }
 
 
@@ -336,55 +553,455 @@ function createRankIcon(rank) {
 // ============================================================
 
 function updateMarkers() {
-    allMarkers.forEach(function (pin) {
-        const controls = filterControls[pin.region];
+    const searchInput =
+        document.getElementById(
+            "iterator-search"
+        );
 
-        if (!controls) {
-            map.removeLayer(pin.marker);
+    const searchResultCount =
+        document.getElementById(
+            "search-result-count"
+        );
+
+    const searchQuery =
+        normalizeSearchText(
+            searchInput
+                ? searchInput.value
+                : ""
+        );
+
+    const searchMatches =
+        getMatchingIterators(
+            searchQuery
+        );
+
+    const matchingMarkers =
+        new Set(searchMatches);
+
+    let visibleMarkerCount = 0;
+
+    allMarkers.forEach(function (pin) {
+        const controls =
+            filterControls[pin.region];
+
+        const clusterGroup =
+            pin.clusterGroup;
+
+        if (!controls || !clusterGroup) {
+            if (
+                clusterGroup &&
+                clusterGroup.hasLayer(
+                    pin.marker
+                )
+            ) {
+                clusterGroup.removeLayer(
+                    pin.marker
+                );
+            }
+
             return;
         }
 
         const groupCheckbox =
-            controls.groupCheckboxes.get(pin.localGroup);
-
-        const regionEnabled =
-            controls.regionCheckbox.checked;
+            controls.groupCheckboxes.get(
+                pin.localGroup
+            );
 
         const groupEnabled =
-            groupCheckbox && groupCheckbox.checked;
+            groupCheckbox &&
+            groupCheckbox.checked;
 
-        if (regionEnabled && groupEnabled) {
-            if (!map.hasLayer(pin.marker)) {
-                pin.marker.addTo(map);
+        const matchesSearch =
+            searchQuery === "" ||
+            matchingMarkers.has(pin);
+
+        const shouldBeVisible =
+            groupEnabled &&
+            matchesSearch;
+
+        if (shouldBeVisible) {
+            visibleMarkerCount += 1;
+
+            if (
+                !clusterGroup.hasLayer(
+                    pin.marker
+                )
+            ) {
+                clusterGroup.addLayer(
+                    pin.marker
+                );
             }
-        } else {
-            if (map.hasLayer(pin.marker)) {
-                map.removeLayer(pin.marker);
-            }
+        } else if (
+            clusterGroup.hasLayer(
+                pin.marker
+            )
+        ) {
+            clusterGroup.removeLayer(
+                pin.marker
+            );
         }
+    });
+
+    renderSearchResults(
+        searchMatches,
+        searchQuery
+    );
+
+    if (!searchResultCount) {
+        return;
+    }
+
+    if (searchQuery === "") {
+        searchResultCount.textContent = "";
+        return;
+    }
+
+    if (searchMatches.length === 0) {
+        searchResultCount.textContent =
+            "No matching iterators";
+
+        return;
+    }
+
+    if (
+        visibleMarkerCount ===
+        searchMatches.length
+    ) {
+        searchResultCount.textContent =
+            `${searchMatches.length} ` +
+            `${pluralizeIterator(
+                searchMatches.length
+            )} found`;
+
+        return;
+    }
+
+    searchResultCount.textContent =
+        `${visibleMarkerCount} of ` +
+        `${searchMatches.length} matching ` +
+        `${pluralizeIterator(
+            searchMatches.length
+        )} visible`;
+}
+
+// ============================================================
+// SEARCH RESULTS
+// ============================================================
+
+function getMatchingIterators(searchQuery) {
+    if (!searchQuery) {
+        return [];
+    }
+
+    return allMarkers.filter(function (pin) {
+        const searchableText = normalizeSearchText(
+            [
+                pin.name,
+                pin.byname,
+                pin.rank
+            ].join(" ")
+        );
+
+        return searchableText.includes(searchQuery);
     });
 }
 
+
+function renderSearchResults(matches, searchQuery) {
+    const resultsList =
+        document.getElementById("search-results-list");
+
+    if (!resultsList) {
+        return;
+    }
+
+    resultsList.innerHTML = "";
+
+    if (!searchQuery || matches.length === 0) {
+        resultsList.classList.remove("visible");
+        return;
+    }
+
+    const maximumDisplayedResults = 8;
+
+    matches
+        .slice(0, maximumDisplayedResults)
+        .forEach(function (pin) {
+            const resultButton =
+                document.createElement("button");
+
+            resultButton.type = "button";
+            resultButton.className = "search-result-button";
+            resultButton.setAttribute("role", "option");
+
+            const resultName =
+                document.createElement("span");
+
+            resultName.className = "search-result-name";
+            resultName.textContent = pin.name;
+
+            const resultDetails =
+                document.createElement("span");
+
+            resultDetails.className = "search-result-details";
+
+            const details = [];
+
+            if (pin.byname) {
+                details.push(pin.byname);
+            }
+
+            if (pin.rank) {
+                details.push(pin.rank);
+            }
+
+            resultDetails.textContent = details.join(" · ");
+
+            resultButton.appendChild(resultName);
+
+            if (details.length > 0) {
+                resultButton.appendChild(resultDetails);
+            }
+
+            resultButton.addEventListener(
+                "click",
+                function () {
+                    focusIteratorFromSearch(pin);
+                }
+            );
+
+            resultsList.appendChild(resultButton);
+        });
+
+    if (matches.length > maximumDisplayedResults) {
+        const remainingCount =
+            matches.length - maximumDisplayedResults;
+
+        const moreResults =
+            document.createElement("div");
+
+        moreResults.className = "search-results-more";
+
+        moreResults.textContent =
+            `+${remainingCount} more ` +
+            `${pluralizeIterator(remainingCount)}`;
+
+        resultsList.appendChild(moreResults);
+    }
+
+    resultsList.classList.add("visible");
+}
+
+
+function focusIteratorFromSearch(pin) {
+    enableIteratorFilters(pin);
+
+    updateMarkers();
+
+    const clusterGroup =
+        pin.clusterGroup;
+
+    if (!clusterGroup) {
+        return;
+    }
+
+    if (
+        !clusterGroup.hasLayer(
+            pin.marker
+        )
+    ) {
+        clusterGroup.addLayer(
+            pin.marker
+        );
+    }
+
+    clusterGroup.zoomToShowLayer(
+        pin.marker,
+        function () {
+            map.panTo(
+                [
+                    pin.latitude,
+                    pin.longitude
+                ],
+                {
+                    animate: true,
+                    duration: 0.4
+                }
+            );
+
+            selectIteratorMarker(
+                pin.marker
+            );
+
+            openIteratorSidebar(
+                pin.iteratorData
+            );
+        }
+    );
+
+    const searchInput =
+        document.getElementById(
+            "iterator-search"
+        );
+
+    if (searchInput) {
+        searchInput.value = "";
+    }
+
+    const searchResultCount =
+        document.getElementById(
+            "search-result-count"
+        );
+
+    if (searchResultCount) {
+        searchResultCount.textContent = "";
+    }
+
+    const resultsList =
+        document.getElementById(
+            "search-results-list"
+        );
+
+    if (resultsList) {
+        resultsList.innerHTML = "";
+
+        resultsList.classList.remove(
+            "visible"
+        );
+    }
+
+    updateMarkers();
+}
+
+function enableIteratorFilters(pin) {
+    const controls =
+        filterControls[pin.region];
+
+    if (!controls) {
+        return;
+    }
+
+    const groupCheckbox =
+        controls.groupCheckboxes.get(pin.localGroup);
+
+    if (groupCheckbox) {
+        groupCheckbox.checked = true;
+    }
+}
 
 // ============================================================
 // 9. SHOW ALL OR HIDE ALL
 // ============================================================
 
 function setAllFilters(checked) {
-    Object.values(filterControls).forEach(function (controls) {
-        controls.regionCheckbox.checked = checked;
-        controls.regionCheckbox.indeterminate = false;
+    Object.entries(filterControls).forEach(
+        function ([region, controls]) {
+            controls.groupCheckboxes.forEach(
+                function (groupCheckbox) {
+                    groupCheckbox.checked =
+                        checked;
+                }
+            );
 
-        controls.groupCheckboxes.forEach(
-            function (groupCheckbox) {
-                groupCheckbox.checked = checked;
-            }
-        );
-    });
+            updateRegionButton(region);
+        }
+    );
 
     updateMarkers();
 }
 
+// ============================================================
+// SELECTED MARKER
+// ============================================================
+
+function applySelectedMarkerStyle(marker) {
+    const markerElement = marker.getElement();
+
+    if (!markerElement) {
+        return;
+    }
+
+    const markerGraphic =
+        markerElement.querySelector(".rank-marker");
+
+    if (markerGraphic) {
+        markerGraphic.classList.add("selected");
+    }
+
+    marker.setZIndexOffset(1000);
+}
+
+function removeSelectedMarkerStyle(marker) {
+    const markerElement = marker.getElement();
+
+    if (markerElement) {
+        const markerGraphic =
+            markerElement.querySelector(".rank-marker");
+
+        if (markerGraphic) {
+            markerGraphic.classList.remove("selected");
+        }
+    }
+
+    marker.setZIndexOffset(0);
+}
+
+function selectIteratorMarker(marker) {
+    clearSelectedMarker();
+
+    selectedMarker = marker;
+
+    applySelectedMarkerStyle(marker);
+}
+
+function clearSelectedMarker() {
+    if (!selectedMarker) {
+        return;
+    }
+
+    removeSelectedMarkerStyle(selectedMarker);
+
+    selectedMarker = null;
+}
+
+function updateMarkerSize() {
+    const zoom = map.getZoom();
+
+    let sizeClass;
+
+    if (zoom <= 2) {
+        sizeClass = "small";
+    } else if (zoom <= 4) {
+        sizeClass = "medium";
+    } else {
+        sizeClass = "large";
+    }
+
+    allMarkers.forEach(function (item) {
+        const markerElement = item.marker.getElement();
+
+        if (!markerElement) {
+            return;
+        }
+
+        const markerGraphic =
+            markerElement.querySelector(".rank-marker");
+
+        if (!markerGraphic) {
+            return;
+        }
+
+        markerGraphic.classList.remove(
+            "small",
+            "medium",
+            "large"
+        );
+
+        markerGraphic.classList.add(
+            sizeClass
+        );
+    });
+}
 
 // ============================================================
 // 10. SIDEBAR
@@ -449,15 +1066,37 @@ function openIteratorSidebar(iterator) {
 }
 
 function closeIteratorSidebar() {
-    document
-        .getElementById("iterator-sidebar")
-        .classList.remove("open");
+    const sidebar =
+        document.getElementById("iterator-sidebar");
+
+    if (!sidebar.classList.contains("open")) {
+        return;
+    }
+
+    if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+    }
+
+    sidebar.classList.remove("open");
+
+    clearSelectedMarker();
 }
 
 
 // ============================================================
 // 11. LOAD ITERATORS FROM GOOGLE SHEETS
 // ============================================================
+
+function hideLoadingState() {
+    const loadingState =
+        document.getElementById("map-loading");
+
+    if (!loadingState) {
+        return;
+    }
+
+    loadingState.classList.add("hidden");
+}
 
 function loadIterators() {
     Papa.parse(spreadsheetUrl, {
@@ -527,14 +1166,63 @@ function loadIterators() {
                     }
                 );
 
+                const clusterGroup =
+                getIteratorClusterGroup(
+                    region,
+                    localGroup
+                );
+
+                const tooltipParts = [
+                    name,
+                    region,
+                    localGroup,
+                    rank
+                ].filter(function (value) {
+                    return value !== "";
+                });
+
+                marker.bindTooltip(
+                    tooltipParts
+                        .map(escapeHtml)
+                        .join(" | "),
+                    {
+                        direction: "top",
+                        offset: [0, -8],
+                        opacity: 0.95,
+                        className: "iterator-tooltip"
+                    }
+                );
+
+                marker.on("add", function () {
+                    if (marker !== selectedMarker) {
+                        return;
+                    }
+
+                    requestAnimationFrame(function () {
+                        applySelectedMarkerStyle(marker);
+                    });
+                });
+
                 marker.on("click", function () {
+                    selectIteratorMarker(marker);
                     openIteratorSidebar(iteratorData);
                 });
 
                 allMarkers.push({
                     marker: marker,
+                    clusterGroup: clusterGroup,
+
                     region: region,
-                    localGroup: localGroup
+                    localGroup: localGroup,
+
+                    rank: rank,
+                    name: name,
+                    byname: byname,
+
+                    latitude: latitude,
+                    longitude: longitude,
+
+                    iteratorData: iteratorData
                 });
 
                 markerLocations.push([
@@ -545,12 +1233,7 @@ function loadIterators() {
 
             updateMarkers();
 
-            if (markerLocations.length > 0) {
-                map.fitBounds(markerLocations, {
-                    padding: [30, 30],
-                    maxZoom: 8
-                });
-            }
+            hideLoadingState();
         },
 
         error: function (error) {
@@ -558,6 +1241,14 @@ function loadIterators() {
                 "Spreadsheet loading failed:",
                 error
             );
+
+            const loadingState =
+                document.getElementById("map-loading");
+
+            if (loadingState) {
+                loadingState.textContent =
+                    "Iterator data could not be loaded.";
+            }
         }
     });
 }
@@ -566,6 +1257,20 @@ function loadIterators() {
 // ============================================================
 // 12. SMALL HELPER FUNCTIONS
 // ============================================================
+
+function normalizeSearchText(value) {
+    return String(value ?? "")
+        .trim()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+}
+
+function pluralizeIterator(count) {
+    return count === 1
+        ? "iterator"
+        : "iterators";
+}
 
 function parseCoordinate(value) {
     return parseFloat(
@@ -594,9 +1299,111 @@ function escapeHtml(value) {
 // 13. START EVERYTHING
 // ============================================================
 
-document
-    .getElementById("close-sidebar-button")
-    .addEventListener("click", closeIteratorSidebar);
+const closeSidebarButton =
+    document.getElementById("close-sidebar-button");
+
+const searchInput =
+    document.getElementById("iterator-search");
+
+const clearSearchButton =
+    document.getElementById("clear-search-button");
+
+const filterPanel =
+    document.getElementById("filters");
+
+const toggleFiltersButton =
+    document.getElementById("toggle-filters-button");
+
+
+if (closeSidebarButton) {
+    closeSidebarButton.addEventListener(
+        "click",
+        closeIteratorSidebar
+    );
+}
+
+
+if (searchInput) {
+    searchInput.addEventListener(
+        "input",
+        updateMarkers
+    );
+}
+
+
+if (clearSearchButton && searchInput) {
+    clearSearchButton.addEventListener(
+        "click",
+        function () {
+            searchInput.value = "";
+            searchInput.focus();
+
+            updateMarkers();
+        }
+    );
+}
+
+
+function updateFilterPanelState(isCollapsed) {
+    if (!filterPanel || !toggleFiltersButton) {
+        return;
+    }
+
+    filterPanel.classList.toggle(
+        "collapsed",
+        isCollapsed
+    );
+
+    toggleFiltersButton.textContent =
+        isCollapsed ? "+" : "−";
+
+    toggleFiltersButton.setAttribute(
+        "aria-label",
+        isCollapsed
+            ? "Expand filters"
+            : "Collapse filters"
+    );
+}
+
+
+if (filterPanel && toggleFiltersButton) {
+    const savedCollapsedState =
+        localStorage.getItem(
+            "iteratorMapFiltersCollapsed"
+        );
+
+    const startsCollapsed =
+        savedCollapsedState === "true";
+
+    updateFilterPanelState(startsCollapsed);
+
+    toggleFiltersButton.addEventListener(
+        "click",
+        function () {
+            const isCollapsed =
+                !filterPanel.classList.contains(
+                    "collapsed"
+                );
+
+            updateFilterPanelState(isCollapsed);
+
+            localStorage.setItem(
+                "iteratorMapFiltersCollapsed",
+                String(isCollapsed)
+            );
+        }
+    );
+}
+
+document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape") {
+        closeIteratorSidebar();
+    }
+});
+
+map.on("click", function () {
+    closeIteratorSidebar();
+});
 
 buildFilterMenu();
 
