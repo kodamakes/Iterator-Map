@@ -9,11 +9,21 @@
         content="width=device-width, initial-scale=1.0"
     >
 
-    <title>Iterator Map</title>
+    <title>ITA | Global Iterator Network</title>
 
     <link
         rel="stylesheet"
         href="https://unpkg.com/leaflet/dist/leaflet.css"
+    >
+
+    <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css"
+    >
+
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css"
     >
 
     <link rel="stylesheet" href="style.css">
@@ -21,21 +31,86 @@
 
 <body>
 
+
+    <div id="page-title">
+        <div class="title-symbol" aria-hidden="true">⊗</div>
+
+        <div class="title-text">
+            <div class="title-main">IN THE AFTERMATH</div>
+            <div class="title-sub">-Global Iterator Network-</div>
+        </div>
+    </div>
+
     <div id="filters">
-        <h3>Regions and Local Groups</h3>
 
-        <button id="show-all-button" type="button">
-            Show All
-        </button>
+        <div id="filter-header">
+            <span>LOCATE REGISTRY ENTRY</span>
 
-        <button id="hide-all-button" type="button">
-            Hide All
-        </button>
+            <button
+                id="toggle-filters-button"
+                type="button"
+                aria-label="Collapse filters"
+            >
+                −
+            </button>
+        </div>
 
-        <div id="filter-list"></div>
+        <div id="filter-content">
+
+            <div id="search-container">
+
+                <div id="search-input-row">
+                    <input
+                        id="iterator-search"
+                        type="search"
+                        placeholder="Enter iterator designation..."
+                    >
+                </div>
+
+                <button id="clear-search-button" type="button">
+                    Clear Search
+                </button>
+
+                <div id="search-result-count"></div>
+                <div id="search-results-list"></div>
+            </div>
+
+            <div id="filter-introduction">
+                <div id="filter-section-title">
+                    Filters
+                </div>
+            </div>
+
+            <div id="filter-list"></div>
+
+            <p id="filter-instructions">
+                Click a region to view its local groups.
+                Double-click to enable or disable the entire region.
+            </p>
+
+            <div id="filter-buttons">
+                <button id="show-all-button">
+                    Enable All
+                </button>
+
+                <button id="hide-all-button">
+                    Disable All
+                </button>
+            </div>
+
+        </div>
+
     </div>
 
     <div id="map"></div>
+
+    <div id="map-loading">
+        Synchronizing global iterator registry...
+    </div>
+
+    <div id="map-footer">
+    Map imagery © Esri, Maxar, Earthstar Geographics · Powered by Leaflet
+    </div>
 
     <aside id="iterator-sidebar">
         <button
@@ -57,7 +132,9 @@
 
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5/papaparse.min.js"></script>
 
     <script src="script.js"></script>
 
